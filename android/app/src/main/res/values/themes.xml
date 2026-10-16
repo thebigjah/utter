@@ -1,0 +1,11 @@
+<resources>
+    <style name="Theme.Utter" parent="android:Theme.Material.NoActionBar">
+        <item name="android:colorPrimary">@color/coral</item>
+        <item name="android:colorAccent">@color/coral</item>
+        <item name="android:windowBackground">@color/ink</item>
+        <item name="android:statusBarColor">@color/ink</item>
+        <item name="android:navigationBarColor">@color/ink</item>
+        <item name="android:textColorPrimary">@color/cream</item>
+        <item name="android:textColorSecondary">@color/muted</item>
+    </style>
+</resources>
