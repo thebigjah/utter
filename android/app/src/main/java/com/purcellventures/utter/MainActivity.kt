@@ -89,6 +89,29 @@ class MainActivity : Activity() {
         step("3. Switch to Utter", selected, "Switch") { imm.showInputMethodPicker() }
         root.addView(text("Tip: the 🌐 key on Utter jumps back to your normal keyboard.", 13f, muted = true).padTop(6))
 
+        section("Hey Cosmic")
+        root.addView(text("Say “${Prefs.wakePhrase(this)}”, then your message. A pause ends it. “Never mind” cancels. Uses the mic while on, so it costs some battery.", 13f, muted = true))
+        val notifOk = checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS) == PackageManager.PERMISSION_GRANTED
+        val listening = Prefs.wakeEnabled(this)
+        step(if (listening) "Listening for the wake phrase" else "Wake phrase is off", false,
+            if (listening) "Turn off" else "Turn on") {
+            if (!micOk) {
+                requestPermissions(arrayOf(Manifest.permission.RECORD_AUDIO), 1)
+            } else if (listening) {
+                WakeService.stop(this)
+                render()
+            } else {
+                if (!notifOk) requestPermissions(arrayOf(Manifest.permission.POST_NOTIFICATIONS), 2)
+                WakeService.start(this)
+                render()
+            }
+        }
+        val a11y = UtterAccessibility.instance != null
+        step("Let Hey Cosmic type in any app", a11y, "Open settings") {
+            startActivity(Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS))
+        }
+        if (!a11y) root.addView(text("Without this, wake commands type only when the Utter keyboard is open, and otherwise go to your clipboard. If the Utter switch is greyed out: Settings › Apps › Utter › ⋮ › Allow restricted settings, then try again.", 13f, muted = true).padTop(6))
+
         section("Try it")
         root.addView(EditText(this).apply {
             hint = "Tap here, then hold the Utter button"

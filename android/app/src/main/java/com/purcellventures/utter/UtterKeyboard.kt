@@ -39,6 +39,24 @@ class UtterKeyboard : InputMethodService(), Recognizer.Listener {
         super.onCreate()
         store = Store(this)
         recognizer = Recognizer(this, this)
+        instance = this
+    }
+
+    override fun onDestroy() {
+        if (instance === this) instance = null
+        super.onDestroy()
+    }
+
+    /** Wake-phrase text, typed through this keyboard when it is the one on screen. */
+    fun insertFromWake(raw: String): Boolean {
+        if (!isInputViewShown) return false
+        val ic = currentInputConnection ?: return false
+        val before = ic.getTextBeforeCursor(300, 0)?.toString()
+        val text = Formatter.format(raw, store.vocabulary(), before)
+        if (text.isBlank()) return true
+        ic.commitText(text, 1)
+        store.append(Store.Entry(System.currentTimeMillis(), text, currentInputEditorInfo?.packageName, Formatter.wordCount(text)))
+        return true
     }
 
     override fun onCreateInputView(): View {
@@ -117,7 +135,7 @@ class UtterKeyboard : InputMethodService(), Recognizer.Listener {
         super.onFinishInputView(finishingInput)
         if (state == State.LISTENING) {
             recognizer.cancel()
-            state = State.IDLE
+            showIdle()
         }
     }
 
@@ -158,6 +176,7 @@ class UtterKeyboard : InputMethodService(), Recognizer.Listener {
         locked = false
         mic.mode = MicButton.Mode.LISTENING
         status.text = "Listening…"
+        WakeService.instance?.pause()
         recognizer.start(store.vocabulary().words)
     }
 
@@ -168,6 +187,7 @@ class UtterKeyboard : InputMethodService(), Recognizer.Listener {
     }
 
     private fun showIdle() {
+        WakeService.instance?.resume()
         state = State.IDLE
         locked = false
         mic.mode = MicButton.Mode.IDLE
@@ -247,5 +267,7 @@ class UtterKeyboard : InputMethodService(), Recognizer.Listener {
 
     companion object {
         const val TAP_MS = 300L
+
+        @Volatile var instance: UtterKeyboard? = null
     }
 }

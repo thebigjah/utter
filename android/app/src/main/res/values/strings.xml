@@ -1,3 +1,4 @@
 <resources>
     <string name="app_name">Utter</string>
+    <string name="accessibility_description">Lets “Hey Cosmic” type your words into the field you are in, in any app. Utter only acts when you say the wake phrase. It does not read or collect your screen.</string>
 </resources>
