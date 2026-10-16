@@ -56,6 +56,7 @@ final class HotkeyMonitor {
         CFRunLoopAddSource(CFRunLoopGetMain(), source, .commonModes)
         CGEvent.tapEnable(tap: tap, enable: true)
         self.tap = tap
+        log.info("event tap started, trigger=\(self.trigger.rawValue, privacy: .public)")
         return true
     }
 
@@ -65,6 +66,7 @@ final class HotkeyMonitor {
             if let tap { CGEvent.tapEnable(tap: tap, enable: true) }
         case .flagsChanged:
             let code = event.getIntegerValueField(.keyboardEventKeycode)
+            log.debug("flagsChanged code=\(code) flags=\(event.flags.rawValue)")
             let down: Bool?
             switch trigger {
             case .fn:

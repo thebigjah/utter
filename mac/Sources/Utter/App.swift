@@ -50,6 +50,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
 
         controller.onChange = { [weak self] in self?.refreshStatusIcon() }
         controller.prepare()
+        log.info("launch: mic=\(Permissions.microphone) ax=\(Permissions.accessibility)")
 
         if !controller.hotkey.start() || !Permissions.allGranted {
             showWelcome()

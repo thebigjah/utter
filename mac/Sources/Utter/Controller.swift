@@ -1,6 +1,9 @@
 import AppKit
 import AVFoundation
 import UtterCore
+import os
+
+let log = Logger(subsystem: "com.purcellventures.utter", category: "dictation")
 
 /// The dictation state machine. Every trigger (hotkey today, wake word later)
 /// goes through begin / finish / cancel.
@@ -52,8 +55,10 @@ final class Controller {
             do {
                 locale = try await DictationSession.prepareModel(locale: Locale.current)
                 modelState = .ready
+                log.info("model ready locale=\(self.locale.identifier, privacy: .public)")
             } catch {
                 modelState = .failed(error.localizedDescription)
+                log.error("model failed: \(error.localizedDescription, privacy: .public)")
             }
         }
     }
@@ -61,6 +66,7 @@ final class Controller {
     // MARK: Hotkey mapping
 
     private func triggerDown() {
+        log.info("trigger down, state=\(String(describing: self.state), privacy: .public)")
         switch state {
         case .idle:
             begin()
@@ -73,6 +79,7 @@ final class Controller {
     }
 
     private func triggerUp() {
+        log.info("trigger up")
         if ignoreNextUp {
             ignoreNextUp = false
             return
@@ -106,6 +113,7 @@ final class Controller {
         }
 
         context = FocusContext.capture()
+        log.info("begin: app=\(self.context.app?.localizedName ?? "?", privacy: .public) role=\(self.context.role ?? "none", privacy: .public) before=\(self.context.beforeText?.count ?? -1)")
         if context.isSecure {
             overlay.show(.message("Can't dictate into a password field"))
             return
@@ -149,6 +157,7 @@ final class Controller {
         Task { @MainActor in
             do {
                 let raw = try await session.finish()
+                log.info("transcript chars=\(raw.count)")
                 self.deliver(raw: raw, context: context)
             } catch {
                 self.fail("Transcription failed: \(error.localizedDescription)")
@@ -181,6 +190,7 @@ final class Controller {
                            words: Formatter.wordCount(text)))
         inserter.insert(text) { [weak self] pasted in
             guard let self else { return }
+            log.info("insert pasted=\(pasted)")
             self.state = .idle
             self.overlay.show(pasted ? .idle : .message("No text field took it. Copied to clipboard."))
             self.onChange()
@@ -188,6 +198,7 @@ final class Controller {
     }
 
     private func fail(_ message: String) {
+        log.error("fail: \(message, privacy: .public)")
         session?.cancel()
         session = nil
         state = .idle
