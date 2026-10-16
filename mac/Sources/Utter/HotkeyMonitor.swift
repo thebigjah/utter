@@ -56,7 +56,7 @@ final class HotkeyMonitor {
         CFRunLoopAddSource(CFRunLoopGetMain(), source, .commonModes)
         CGEvent.tapEnable(tap: tap, enable: true)
         self.tap = tap
-        log.info("event tap started, trigger=\(self.trigger.rawValue, privacy: .public)")
+        log.notice("event tap started, trigger=\(self.trigger.rawValue, privacy: .public)")
         return true
     }
 

@@ -15,6 +15,8 @@ final class Controller {
     let overlay = Overlay()
     let inserter = Inserter()
     let hotkey: HotkeyMonitor
+    let wake = WakeListener(phrase: Settings.wakePhrase)
+    private var wakeActive = false
 
     private(set) var state: State = .idle
     private(set) var modelState: ModelState = .preparing {
@@ -43,6 +45,12 @@ final class Controller {
         hotkey.onUp = { [weak self] in self?.triggerUp() }
         hotkey.onLock = { [weak self] in self?.lock() }
         hotkey.onCancel = { [weak self] in self?.cancel(silent: false) }
+
+        wake.isBusy = { [weak self] in self?.state != .idle }
+        wake.onWake = { [weak self] in self?.wakeBegan() }
+        wake.onLevel = { [weak self] level in self?.overlay.pushLevel(level) }
+        wake.onFinished = { [weak self] text in self?.wakeFinished(text) }
+        wake.onCancelled = { [weak self] in self?.wakeCancelled() }
         hotkey.onChord = { [weak self] in
             guard let self, self.state == .recording, !self.locked else { return }
             self.cancel(silent: true)
@@ -55,7 +63,8 @@ final class Controller {
             do {
                 locale = try await DictationSession.prepareModel(locale: Locale.current)
                 modelState = .ready
-                log.info("model ready locale=\(self.locale.identifier, privacy: .public)")
+                updateWakeListener()
+                log.notice("model ready locale=\(self.locale.identifier, privacy: .public)")
             } catch {
                 modelState = .failed(error.localizedDescription)
                 log.error("model failed: \(error.localizedDescription, privacy: .public)")
@@ -66,7 +75,12 @@ final class Controller {
     // MARK: Hotkey mapping
 
     private func triggerDown() {
-        log.info("trigger down, state=\(String(describing: self.state), privacy: .public)")
+        log.notice("trigger down, state=\(String(describing: self.state), privacy: .public)")
+        if wakeActive {
+            ignoreNextUp = true
+            wake.finishNow()
+            return
+        }
         switch state {
         case .idle:
             begin()
@@ -79,7 +93,7 @@ final class Controller {
     }
 
     private func triggerUp() {
-        log.info("trigger up")
+        log.notice("trigger up")
         if ignoreNextUp {
             ignoreNextUp = false
             return
@@ -113,7 +127,7 @@ final class Controller {
         }
 
         context = FocusContext.capture()
-        log.info("begin: app=\(self.context.app?.localizedName ?? "?", privacy: .public) role=\(self.context.role ?? "none", privacy: .public) before=\(self.context.beforeText?.count ?? -1)")
+        log.notice("begin: app=\(self.context.app?.localizedName ?? "?", privacy: .public) role=\(self.context.role ?? "none", privacy: .public) before=\(self.context.beforeText?.count ?? -1)")
         if context.isSecure {
             overlay.show(.message("Can't dictate into a password field"))
             return
@@ -157,7 +171,7 @@ final class Controller {
         Task { @MainActor in
             do {
                 let raw = try await session.finish()
-                log.info("transcript chars=\(raw.count)")
+                log.notice("transcript chars=\(raw.count)")
                 self.deliver(raw: raw, context: context)
             } catch {
                 self.fail("Transcription failed: \(error.localizedDescription)")
@@ -167,6 +181,11 @@ final class Controller {
 
     func cancel(silent: Bool) {
         guard state == .recording else { return }
+        if wakeActive {
+            wake.cancelCapture()
+            wakeCancelled()
+            return
+        }
         maxDurationWork?.cancel()
         session?.cancel()
         session = nil
@@ -190,11 +209,66 @@ final class Controller {
                            words: Formatter.wordCount(text)))
         inserter.insert(text) { [weak self] pasted in
             guard let self else { return }
-            log.info("insert pasted=\(pasted)")
+            log.notice("insert pasted=\(pasted)")
             self.state = .idle
             self.overlay.show(pasted ? .idle : .message("No text field took it. Copied to clipboard."))
             self.onChange()
         }
+    }
+
+    // MARK: Wake word
+
+    /// Starts or stops the always-on listener to match the setting and permissions.
+    func updateWakeListener() {
+        let wanted = Settings.wakeEnabled && modelState == .ready
+            && AVCaptureDevice.authorizationStatus(for: .audio) == .authorized
+        if wanted {
+            wake.start(locale: locale, vocabulary: store.vocabulary().words)
+        } else {
+            wake.stop()
+            if wakeActive { wakeCancelled() }
+        }
+        onChange()
+    }
+
+    func setWakePhrase(_ phrase: String) {
+        Settings.wakePhrase = phrase
+        wake.stop()
+        wake.wake = WakePhrase(phrase)
+        updateWakeListener()
+    }
+
+    private func wakeBegan() {
+        guard state == .idle else { return }
+        context = FocusContext.capture()
+        wakeActive = true
+        state = .recording
+        startedAt = Date()
+        Sounds.play(.start)
+        overlay.show(.listening(locked: true))
+        onChange()
+    }
+
+    private func wakeFinished(_ raw: String) {
+        guard wakeActive else { return }
+        wakeActive = false
+        state = .processing
+        Sounds.play(.stop)
+        if context.isSecure {
+            fail("Can't dictate into a password field")
+            return
+        }
+        log.notice("wake command chars=\(raw.count)")
+        deliver(raw: raw, context: context)
+    }
+
+    private func wakeCancelled() {
+        guard wakeActive else { return }
+        wakeActive = false
+        state = .idle
+        Sounds.play(.cancel)
+        overlay.show(.idle)
+        onChange()
     }
 
     private func fail(_ message: String) {
@@ -233,6 +307,18 @@ enum Settings {
     static let triggerKey = "trigger"
     static let idleBarKey = "showIdleBar"
     static let soundsKey = "playSounds"
+    static let wakeEnabledKey = "wakeEnabled"
+    static let wakePhraseKey = "wakePhrase"
+
+    static var wakeEnabled: Bool {
+        get { UserDefaults.standard.object(forKey: wakeEnabledKey) as? Bool ?? true }
+        set { UserDefaults.standard.set(newValue, forKey: wakeEnabledKey) }
+    }
+
+    static var wakePhrase: String {
+        get { UserDefaults.standard.string(forKey: wakePhraseKey) ?? "Hey Cosmic" }
+        set { UserDefaults.standard.set(newValue, forKey: wakePhraseKey) }
+    }
 
     static var showIdleBar: Bool {
         get { UserDefaults.standard.object(forKey: idleBarKey) as? Bool ?? true }

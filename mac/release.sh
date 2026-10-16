@@ -1,7 +1,8 @@
 #!/bin/bash
 # Cuts a Sparkle update: ./release.sh 0.2.0 2
 # Builds, zips, signs the zip with the EdDSA key in the Keychain (account "utter"),
-# and regenerates dist/releases/appcast.xml. Upload both to the release host.
+# regenerates the appcast into ../feeds/appcast.xml, and publishes the zip as GitHub release mac-v<version>.
+# Commit and push feeds/appcast.xml afterwards; that push is what makes the update visible.
 set -euo pipefail
 cd "$(dirname "$0")"
 
@@ -15,4 +16,9 @@ ZIP="dist/releases/Utter-${VERSION}.zip"
 ditto -c -k --sequesterRsrc --keepParent dist/Utter.app "$ZIP"
 .build/artifacts/sparkle/Sparkle/bin/generate_appcast --account utter \
   --download-url-prefix "$PREFIX" dist/releases
-echo "Ready: $ZIP and dist/releases/appcast.xml"
+mkdir -p ../feeds
+cp dist/releases/appcast.xml ../feeds/appcast.xml
+if [[ "${PUBLISH:-1}" == "1" ]]; then
+  gh release create "mac-v${VERSION}" "$ZIP" --repo thebigjah/utter --title "Utter for Mac ${VERSION}" --notes "${NOTES:-}"
+fi
+echo "Released $ZIP. Now commit and push feeds/appcast.xml."

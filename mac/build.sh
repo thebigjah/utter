@@ -5,7 +5,7 @@ cd "$(dirname "$0")"
 
 VERSION="${VERSION:-0.1.0}"
 BUILD="${BUILD:-1}"
-FEED="${FEED:-https://github.com/thebigjah/utter/releases/latest/download/appcast.xml}"
+FEED="${FEED:-https://raw.githubusercontent.com/thebigjah/utter/main/feeds/appcast.xml}"
 PUBLIC_KEY="wDvhbubIXLmVHD6uwliTeBIiXcVGuOJutJXPHZFL9aM="
 IDENTITY="${IDENTITY:-Apple Development: Elijah Purcell (V227VAM38S)}"
 

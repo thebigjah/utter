@@ -50,15 +50,20 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
 
         controller.onChange = { [weak self] in self?.refreshStatusIcon() }
         controller.prepare()
-        log.info("launch: mic=\(Permissions.microphone) ax=\(Permissions.accessibility)")
+        log.notice("launch: mic=\(Permissions.microphone) ax=\(Permissions.accessibility)")
 
         if !controller.hotkey.start() || !Permissions.allGranted {
             showWelcome()
         }
-        // The event tap needs Accessibility. Keep trying until the user grants it.
+        // The event tap needs Accessibility and the wake listener needs the mic.
+        // Keep checking until both are granted.
         permissionTimer = Timer.scheduledTimer(withTimeInterval: 1.5, repeats: true) { [weak self] timer in
             guard let self else { return }
-            if self.controller.hotkey.start() { timer.invalidate() }
+            let tapRunning = self.controller.hotkey.start()
+            if Permissions.microphone && self.controller.wake.mode == .off && Settings.wakeEnabled {
+                self.controller.updateWakeListener()
+            }
+            if tapRunning && Permissions.microphone { timer.invalidate() }
         }
     }
 
@@ -83,6 +88,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         }
         menu.addItem(disabled(header))
         menu.addItem(disabled("\(controller.store.totalWords.formatted()) words dictated"))
+        menu.addItem(.separator())
+        let wakeItem = item("Listen for “\(Settings.wakePhrase)”", #selector(toggleWake), "")
+        wakeItem.state = Settings.wakeEnabled ? .on : .off
+        menu.addItem(wakeItem)
         menu.addItem(.separator())
 
         let recentItem = NSMenuItem(title: "Recent", action: nil, keyEquivalent: "")
@@ -124,6 +133,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         let item = NSMenuItem(title: title, action: action, keyEquivalent: key)
         item.target = self
         return item
+    }
+
+    @objc private func toggleWake() {
+        Settings.wakeEnabled.toggle()
+        controller.updateWakeListener()
     }
 
     @objc private func copyEntry(_ sender: NSMenuItem) {
@@ -306,6 +320,8 @@ struct SettingsView: View {
     @State private var sounds = Settings.playSounds
     @State private var launchAtLogin = SMAppService.mainApp.status == .enabled
     @State private var autoUpdate: Bool
+    @State private var wakeEnabled = Settings.wakeEnabled
+    @State private var wakePhrase = Settings.wakePhrase
 
     init(controller: Controller, updater: SPUUpdater) {
         self.controller = controller
@@ -320,6 +336,20 @@ struct SettingsView: View {
                 ForEach(HotkeyMonitor.Trigger.allCases, id: \.self) { Text($0.title).tag($0) }
             }
             .onChange(of: trigger) { _, value in controller.setTrigger(value) }
+
+            Toggle("Listen for a wake phrase", isOn: $wakeEnabled)
+                .onChange(of: wakeEnabled) { _, value in
+                    Settings.wakeEnabled = value
+                    controller.updateWakeListener()
+                }
+            TextField("Wake phrase", text: $wakePhrase)
+                .onSubmit {
+                    let phrase = wakePhrase.trimmingCharacters(in: .whitespaces)
+                    guard phrase.split(separator: " ").count >= 2 else { wakePhrase = Settings.wakePhrase; return }
+                    controller.setWakePhrase(phrase)
+                }
+            Text("Say the phrase, then your message. A pause ends it. “Never mind” cancels.")
+                .font(.caption).foregroundStyle(.secondary)
 
             Toggle("Show the bar when idle", isOn: $idleBar)
                 .onChange(of: idleBar) { _, value in

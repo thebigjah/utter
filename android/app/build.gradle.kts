@@ -23,7 +23,7 @@ android {
         versionCode = 1
         versionName = "0.1.0"
         buildConfigField("String", "UPDATE_URL",
-            "\"https://github.com/thebigjah/utter/releases/latest/download/android.json\"")
+            "\"https://raw.githubusercontent.com/thebigjah/utter/main/feeds/android.json\"")
     }
 
     buildFeatures { buildConfig = true }

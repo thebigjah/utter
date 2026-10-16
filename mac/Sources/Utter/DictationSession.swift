@@ -15,10 +15,13 @@ final class DictationSession {
     private var resultsTask: Task<String, Error>?
     var onLevel: ((Float) -> Void)?
 
-    init(locale: Locale, vocabulary: [String]) {
+    /// With `onResult`, the session streams every partial and final result to the main queue
+    /// and keeps no transcript of its own (the wake listener runs for hours).
+    init(locale: Locale, vocabulary: [String], onResult: ((_ text: String, _ isFinal: Bool) -> Void)? = nil) {
         transcriber = DictationTranscriber(locale: locale, contentHints: [],
                                            transcriptionOptions: [.punctuation],
-                                           reportingOptions: [], attributeOptions: [])
+                                           reportingOptions: onResult == nil ? [] : [.volatileResults],
+                                           attributeOptions: [])
         analyzer = SpeechAnalyzer(modules: [transcriber],
                                   options: .init(priority: .userInitiated, modelRetention: .processLifetime))
         (input, feed) = AsyncStream<AnalyzerInput>.makeStream()
@@ -26,9 +29,14 @@ final class DictationSession {
         let transcriber = self.transcriber
         resultsTask = Task {
             var text = ""
-            for try await result in transcriber.results where result.isFinal {
+            for try await result in transcriber.results {
                 let piece = String(result.text.characters).trimmingCharacters(in: .whitespaces)
-                guard !piece.isEmpty else { continue }
+                if let onResult {
+                    let isFinal = result.isFinal
+                    DispatchQueue.main.async { onResult(piece, isFinal) }
+                    continue
+                }
+                guard result.isFinal, !piece.isEmpty else { continue }
                 text += text.isEmpty ? piece : " " + piece
             }
             return text
@@ -140,6 +148,11 @@ final class DictationSession {
         try await startTask?.value
         try await analyzer.finalizeAndFinishThroughEndOfInput()
         return try await resultsTask?.value ?? ""
+    }
+
+    /// Returns when the transcriber's result stream ends, for any reason.
+    func waitUntilEnded() async {
+        _ = try? await resultsTask?.value
     }
 
     func cancel() {
