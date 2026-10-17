@@ -1,0 +1,15 @@
+<?xml version="1.0" standalone="yes"?>
+<rss xmlns:sparkle="http://www.andymatuschak.org/xml-namespaces/sparkle" version="2.0">
+    <channel>
+        <title>Utter</title>
+        <item>
+            <title>0.2.0</title>
+            <pubDate>Fri, 16 Oct 2026 18:42:26 -0500</pubDate>
+            <sparkle:version>2</sparkle:version>
+            <sparkle:shortVersionString>0.2.0</sparkle:shortVersionString>
+            <sparkle:minimumSystemVersion>26.0</sparkle:minimumSystemVersion>
+            <sparkle:hardwareRequirements>arm64</sparkle:hardwareRequirements>
+            <enclosure url="https://github.com/thebigjah/utter/releases/download/mac-v0.2.0/Utter-0.2.0.zip" length="1416783" type="application/octet-stream" sparkle:edSignature="vHN+DrEZtAcibcoTFh8XQ+fxbzl0SKCuor7AXm67pjXZJHetr6DvUbh9bvFml4GB3baNqFfWFl9VJj9qFpdWCQ=="/>
+        </item>
+    </channel>
+</rss>
