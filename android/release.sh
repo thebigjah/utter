@@ -19,6 +19,6 @@ cat > ../feeds/android.json <<JSON
 {"versionCode": ${CODE}, "versionName": "${NAME}", "apkUrl": "${PREFIX}${APK}", "notes": "${NOTES:-}"}
 JSON
 if [[ "${PUBLISH:-1}" == "1" ]]; then
-  gh release create "android-v${NAME}" "dist/$APK" --repo thebigjah/utter --title "Utter for Android ${NAME}" --notes "${NOTES:-}"
+  gh release create "android-v${NAME}" "dist/$APK" --repo thebigjah/utter --title "Utter for Android ${NAME}" --notes "${NOTES:-}" --latest=false
 fi
 echo "Released dist/$APK. Now commit and push feeds/android.json."
